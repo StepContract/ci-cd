@@ -1,0 +1,7 @@
+name: Internal CI
+
+on: [push]
+
+jobs:
+  commitlint:
+    uses: ./.github/workflows/commitlint.yml
