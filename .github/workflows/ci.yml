@@ -5,3 +5,9 @@ on: [push]
 jobs:
   commitlint:
     uses: ./.github/workflows/commitlint.yml
+
+  release:
+    if: github.ref == 'refs/heads/main'
+    needs: commitlint
+    uses: .github/workflows/semantic-release.yml
+    secrets: inherit

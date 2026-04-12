@@ -1,0 +1,93 @@
+name: Semantic Release
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        description: Node.js version used to run semantic-release
+        required: false
+        type: string
+        default: '24'
+      working_directory:
+        description: Directory where semantic-release should run
+        required: false
+        type: string
+        default: '.'
+      install_command:
+        description: Optional dependency installation command for repository-specific release plugins/config
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: Run semantic-release in dry-run mode
+        required: false
+        type: boolean
+        default: false
+      extra_args:
+        description: Extra CLI arguments passed to semantic-release
+        required: false
+        type: string
+        default: ''
+    secrets:
+      github_token:
+        description: Token used by semantic-release to create tags and GitHub releases
+        required: false
+      npm_token:
+        description: Optional token for npm publishing when enabled by the caller repository config
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Install release dependencies
+        if: inputs.install_command != ''
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.install_command }}
+
+      - name: Prepare default semantic-release config
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          if [ -f .releaserc ] || [ -f .releaserc.json ] || [ -f .releaserc.yaml ] || [ -f .releaserc.yml ] || [ -f .releaserc.js ] || [ -f .releaserc.cjs ] || [ -f .releaserc.mjs ] || [ -f release.config.js ] || [ -f release.config.cjs ] || [ -f release.config.mjs ]; then
+            exit 0
+          fi
+
+          cat <<'EOF' > .releaserc.cjs
+          module.exports = {
+            plugins: [
+              "@semantic-release/commit-analyzer",
+              "@semantic-release/release-notes-generator",
+              "@semantic-release/github",
+            ],
+          };
+          EOF
+
+      - name: Run semantic-release
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token != '' && secrets.github_token || github.token }}
+          NPM_TOKEN: ${{ secrets.npm_token }}
+        run: |
+          npx \
+            -p semantic-release \
+            -p @semantic-release/commit-analyzer \
+            -p @semantic-release/release-notes-generator \
+            -p @semantic-release/github \
+            semantic-release ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.extra_args }}
